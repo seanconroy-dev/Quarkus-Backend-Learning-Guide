@@ -1,4 +1,3 @@
-```markdown
 ---
 title: "Error Handling in REST APIs"
 project: "FIAE Exam Part 1 Backend"
@@ -30,7 +29,9 @@ A key part of backend design is understanding when something is considered an er
 
 ### Definition
 
-Error handling in REST APIs defines how the backend responds when:
+Error handling in REST APIs defines how a backend communicates failure states to clients.
+
+This includes cases where:
 
 - a requested resource does not exist  
 - input is invalid  
@@ -46,7 +47,7 @@ The goal is to provide:
 
 ## Two Different Situations
 
-## 1. Single Resource Not Found
+### 1. Single Resource Not Found
 
 ```text
 GET /api/cards/999
@@ -75,7 +76,7 @@ GET /api/cards/999
 
 ---
 
-## 2. Filtered Collection with No Results
+### 2. Filtered Collection with No Results
 
 ```text
 GET /api/cards?module=DoesNotExist
@@ -100,6 +101,35 @@ GET /api/cards?module=DoesNotExist
 
 ---
 
+### 3. Invalid Request (Client Error)
+
+```text
+GET /api/cards?banana=test
+```
+
+### Expected Response
+
+```json
+{
+  "message": "Invalid query parameter: banana",
+  "status": 400,
+  "timestamp": "2026-04-11T12:00:00Z"
+}
+```
+
+### Explanation
+
+- the client sent an **unsupported query parameter**  
+- the request is syntactically valid but **semantically incorrect**  
+- this is a **client error**  
+
+### Result
+
+- HTTP status: `400 Bad Request`  
+- structured error response  
+
+---
+
 ## Rule of Thumb
 
 ```text
@@ -120,9 +150,13 @@ The difference is based on **intent**:
 | `/api/cards?module=X` | “Give me all matching objects” | Empty result is valid |
 | `/api/cards?banana=test` | Invalid parameter | Error (400) |
 
+This distinction is fundamental in REST API design.
+
 ---
 
-## Implementation — Exception Mapper
+## Implementation — Exception Mappers
+
+### 404 Not Found
 
 ```java
 @Provider
@@ -132,8 +166,7 @@ public class GlobalExceptionMapper implements ExceptionMapper<NotFoundException>
     public Response toResponse(NotFoundException exception) {
         ErrorResponseDto error = new ErrorResponseDto(
             exception.getMessage(),
-            404,
-            Instant.now().toString()
+            404
         );
 
         return Response.status(Response.Status.NOT_FOUND)
@@ -146,19 +179,72 @@ public class GlobalExceptionMapper implements ExceptionMapper<NotFoundException>
 
 ---
 
+### 400 Bad Request
+
+```java
+@Provider
+public class GlobalBadRequestExceptionMapper implements ExceptionMapper<BadRequestException> {
+
+    @Override
+    public Response toResponse(BadRequestException exception) {
+        ErrorResponseDto error = new ErrorResponseDto(
+            exception.getMessage(),
+            400
+        );
+
+        return Response.status(Response.Status.BAD_REQUEST)
+            .entity(error)
+            .type(MediaType.APPLICATION_JSON)
+            .build();
+    }
+}
+```
+
+---
+
 ## Supporting DTO
 
 ```java
+import java.time.Instant;
+
 public class ErrorResponseDto {
     public String message;
     public int status;
     public String timestamp;
 
-    public ErrorResponseDto(String message, int status, String timestamp) {
+    public ErrorResponseDto(String message, int status) {
         this.message = message;
         this.status = status;
-        this.timestamp = timestamp;
+        this.timestamp = Instant.now().toString();
     }
+}
+```
+
+---
+
+## Implementation — Query Parameter Validation
+
+Instead of hardcoding specific invalid parameters, define allowed parameters and validate dynamically.
+
+```java
+@GET
+@Produces(MediaType.APPLICATION_JSON)
+public List<CardDto> getCards(@Context UriInfo uriInfo,
+                             @QueryParam("module") String module) {
+
+    var queryParams = uriInfo.getQueryParameters();
+
+    for (String param : queryParams.keySet()) {
+        if (!param.equals("module")) {
+            throw new BadRequestException("Invalid query parameter: " + param);
+        }
+    }
+
+    if (module != null) {
+        return cardService.getByModule(module);
+    }
+
+    return cardService.getCards();
 }
 ```
 
@@ -166,15 +252,17 @@ public class ErrorResponseDto {
 
 ## Explanation
 
-- `timestamp` helps track when the error occurred  
-- useful for debugging and logging  
-- keeps error responses consistent and informative  
+- validation checks all incoming query parameters  
+- only explicitly allowed parameters are accepted  
+- unknown parameters result in a `400 Bad Request`  
+- prevents silent failures and unexpected behavior  
 
 ---
 
 ## What to Avoid
 
 - returning `404` for filtered collections  
+- silently ignoring invalid query parameters  
 - returning HTML error pages instead of JSON  
 - using inconsistent error formats  
 - exposing internal errors directly  
@@ -201,22 +289,24 @@ This topic is relevant for:
 - REST API design principles  
 - distinguishing valid results vs errors  
 - consistent response design  
+- input validation  
 
 You should be able to explain:
 
 - when to return `404 Not Found`  
 - why an empty list is not an error  
 - when to return `400 Bad Request`  
+- how APIs validate input  
 - how backend systems standardize error responses  
 
 ---
 
 ## Next Step
 
-Validation of input:
+Introduce a reusable validation layer:
 
 ```text
-GET /api/cards?banana=test → 400 Bad Request
+Move query validation out of the resource into a dedicated validator class
 ```
 
 ---
@@ -226,4 +316,3 @@ GET /api/cards?banana=test → 400 Bad Request
 Error handling in REST is not only about technical failures.
 
 It is about correctly interpreting the **intent of a request** and responding in a consistent and predictable way.
-```
