@@ -5,16 +5,16 @@ author: "Sean"
 date: 2026-04-11
 type: "lesson"
 tags:
-  - quarkus
-  - java
-  - backend
-  - rest
-  - dto
-  - service-layer
-  - dependency-injection
-  - json
-  - classpath
-  - query-parameters
+    - quarkus
+    - java
+    - backend
+    - rest
+    - dto
+    - service-layer
+    - dependency-injection
+    - json
+    - classpath
+    - query-parameters
 status: "in-progress"
 ---
 
