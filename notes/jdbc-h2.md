@@ -5,12 +5,12 @@ author: "Sean"
 date: 2026-05-20
 type: "lesson"
 tags:
-	- backend
-	- database
-	- jdbc
-	- h2
-	- sql
-	- quarkus
+- backend
+- database
+- jdbc
+- h2
+- sql
+- quarkus
 status: "reviewed"
 ---
 
